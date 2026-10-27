@@ -1,0 +1,127 @@
+
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Online Store Sales Performance Report</title>
+<style>
+:root,[data-theme="sage"]{--bg:#cfd8cf;--card:#f4f6f1;--tx:#1f2a24;--mu:#5b6b60;--bd:#b3c0b6;--ht:#1f2a24;--sh:rgba(0,0,0,.12);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[data-theme="rose"]{--bg:linear-gradient(135deg,#c4506e,#3f4f8f);--card:#f5f0f7;--tx:#232344;--mu:#6a6785;--bd:#d6cfe0;--ht:#fff;--sh:rgba(0,0,0,.25)}
+[data-theme="night"]{--bg:#0f1218;--card:#181c25;--tx:#e8ebf1;--mu:#8b93a5;--bd:#2a3040;--ht:#e8ebf1;--sh:rgba(0,0,0,.4);color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg) fixed;background-color:#cfd8cf;color:var(--tx);font:14px/1.4 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif;padding:14px;min-height:100%}
+#app{max-width:1300px;margin:auto}
+.top{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:10px}
+h1{margin:0;font-size:24px;color:var(--ht);font-weight:700;outline:none}
+.sub{font-size:12px;color:var(--ht);opacity:.8}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;box-shadow:0 2px 6px var(--sh)}
+.tools{display:flex;flex-wrap:wrap;gap:8px}
+select,button{font:inherit;padding:6px 10px;border:1px solid var(--bd);border-radius:7px;background:var(--card);color:var(--tx);cursor:pointer}
+button.p{background:#2f4858;color:#fff;border-color:#2f4858}
+.sl{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:10px}
+label{display:flex;flex-direction:column;font-size:11px;color:var(--mu);gap:2px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px}
+.kpi{display:flex;align-items:center;gap:12px}.kpi i{font-style:normal;font-size:28px}
+.kpi span{font-size:12px;color:var(--mu);display:block}.kpi b{font-size:26px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:10px;margin-bottom:10px}
+h2{font-size:13px;margin:0 0 6px;font-weight:600}
+.ch{position:relative;height:230px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.chip{background:#2f4858;color:#fff;border-radius:99px;padding:2px 10px;font-size:12px;cursor:pointer}
+.note{font-size:12px;color:var(--ht);opacity:.85}
+</style></head><body><div id="app">
+<div class="top"><div><h1 contenteditable="true" spellcheck="false" title="Click to edit the title">Online Store Sales Performance Report</h1><div class="sub" id="src"></div></div>
+<div class="tools">
+<input type="file" id="file" accept=".xlsx,.xls,.csv" hidden>
+<button class="p" onclick="file.click()">Import Excel / CSV</button>
+<button onclick="loadSample()">Sample data</button>
+<button onclick="template()">Template CSV</button>
+<button onclick="downloadPic()">📷 Download picture</button>
+<select id="theme" onchange="setTheme(this.value)"></select></div></div>
+<div class="card sl">
+<label>Month<select id="month"></select></label><label>Segment<select id="segment"></select></label>
+<label>Category<select id="category"></select></label><label>City<select id="city"></select></label>
+<button onclick="resetF()">Reset slicers</button><div class="chips" id="chips" style="margin:0"></div></div>
+<div class="kpis" id="kpis"></div>
+<div class="grid">
+<div class="card"><h2>Sales vs Profit by City</h2><div class="ch"><canvas id="c1"></canvas></div></div>
+<div class="card"><h2>Total Sales &amp; Profit by Month</h2><div class="ch"><canvas id="c2"></canvas></div></div>
+<div class="card"><h2>Total Sales by Segment</h2><div class="ch"><canvas id="c3"></canvas></div></div></div>
+<div class="grid">
+<div class="card"><h2>Total Sales by Category</h2><div class="ch"><canvas id="c4"></canvas></div></div>
+<div class="card"><h2>Total Orders by Category</h2><div class="ch"><canvas id="c5"></canvas></div></div>
+<div class="card"><h2>Top 5 Customers by Sales</h2><div class="ch"><canvas id="c6"></canvas></div></div></div>
+<p class="note">Click any bar, slice or month to cross-filter all visuals. Import a file with columns like Order ID, Order Date, Customer, Segment, Category, City, Quantity, Sales, Profit; everything updates automatically.</p>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const TH={sage:{n:'Sage green',p:['#4a6b57','#c9a24b','#2f4858','#e0833c','#7a9e87','#8c6d46']},rose:{n:'Rose & blue',p:['#3b5b92','#e0b13a','#c0546b','#5aa0d0','#8d4f8f','#e07a5f']},night:{n:'Midnight',p:['#5b8cff','#34d399','#f59e0b','#f472b6','#a78bfa','#22d3ee']}};
+let theme=matchMedia('(prefers-color-scheme: dark)').matches?'night':'sage',DATA=[],F={},charts={};
+const FK=['month','segment','category','city'];
+const kf=n=>n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e3?Math.round(n/1e3)+'K':String(Math.round(n));
+const pd=v=>{if(v instanceof Date)return v;if(typeof v==='number')return new Date(Math.round((v-25569)*864e5)+43200000);const d=new Date(v);return isNaN(d)?null:d};
+const num=v=>parseFloat(String(v).replace(/[^0-9.\-]/g,''))||0;
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+function loadSample(){
+  let s=11;const r=()=>(s=(s*16807)%2147483647)/2147483647,pick=a=>a[Math.floor(r()*a.length)];
+  const fn=['Aaron','Beth','Carlos','Dana','Elena','Farid','Grace','Hugo','Ines','Jon','Kira','Liam','Mona','Nils','Olga','Paul','Rita','Sven','Tara','Uma'],ln=['Frost','Hill','Rao','Kumar','Nolan','Berg','Stone','Lopez','Khan','Reed','Singh','Moore'];
+  const cust=[];for(let i=0;i<116;i++)cust.push(fn[i%20]+' '+ln[Math.floor(i/20)%12]+(i>=240?i:''));
+  const cats=[['Technology',1.5],['Office Supplies',1],['Furniture',0.7],['Other',0.5]],seg=['Consumer','Corporate','Home Office'],city=['Copenhagen K','Odense','Aarhus','Esbjerg','Fredericia'];
+  const segOf={};cust.forEach(c=>segOf[c]=pick(seg));const rows=[];
+  for(let i=0;i<171;i++){const c=i<116?cust[i]:pick(cust),ct=pick(cats),m=Math.floor(r()*6),q=40+Math.floor(r()*190),sales=Math.round(q*(40+r()*80)*ct[1]);
+    rows.push({order:'ORD-'+(1000+i),date:`2020-${String(m+1).padStart(2,'0')}-${String(1+Math.floor(r()*27)).padStart(2,'0')}`,customer:c,segment:segOf[c],category:ct[0],city:pick(city),qty:q,sales,profit:Math.round(sales*(0.3+r()*0.2))});}
+  setData(rows,'Sample data: 171 orders, Jan to Jun 2020');
+}
+const MAP=[['date',/date|day/i],['order',/order|invoice/i],['customer',/customer|client|buyer/i],['segment',/segment/i],['category',/categ/i],['city',/city|region|state|location/i],['qty',/qty|quant|units/i],['profit',/profit|margin/i],['sales',/sales|revenue|amount/i]];
+function normalize(raw){
+  if(!raw.length)return[];const keys=Object.keys(raw[0]),m={},used=[];
+  for(const [f,rx] of MAP){m[f]=keys.find(k=>!used.includes(k)&&rx.test(k)&&!(f==='order'&&/date/i.test(k)));if(m[f])used.push(m[f]);}
+  if(!m.sales){alert('Could not find a Sales/Revenue column. Please check your headers.');return[];}
+  return raw.map((o,i)=>{const d=m.date?pd(o[m.date]):null;return{order:m.order?String(o[m.order]):'R'+i,date:d?d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'):'',customer:m.customer?String(o[m.customer]):'Unknown',segment:m.segment?String(o[m.segment]):'All',category:m.category?String(o[m.category]):'All',city:m.city?String(o[m.city]):'All',qty:m.qty?num(o[m.qty]):1,sales:num(o[m.sales]),profit:m.profit?num(o[m.profit]):0}});
+}
+$('#file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=ev=>{try{const wb=XLSX.read(ev.target.result,{type:'array',cellDates:true});const rows=normalize(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}));if(rows.length)setData(rows,f.name+': '+rows.length.toLocaleString()+' rows')}catch(x){alert('Could not read file: '+x.message)}};
+  rd.readAsArrayBuffer(f);e.target.value='';};
+const mlabel=k=>k?MN[+k.slice(5,7)-1]+' '+k.slice(2,4):'All';
+function setData(rows,label){
+  DATA=rows;$('#src').textContent=label;
+  FK.forEach(k=>{const u=[...new Set(DATA.map(r=>r[k]))].sort();$('#'+k).innerHTML='<option value="">All</option>'+u.map(x=>`<option value="${esc(x)}">${k==='month'?mlabel(x):esc(x)}</option>`).join('')});
+  resetF();
+}
+function resetF(){F={};FK.forEach(k=>$('#'+k).value='');render()}
+FK.forEach(k=>$('#'+k).onchange=e=>{F[k]=e.target.value;render()});
+function setF(k,v){F[k]=F[k]===v?'':v;$('#'+k).value=F[k];render()}
+function setTheme(t){theme=t;document.documentElement.dataset.theme=t;render()}
+const grp=(rows,k,fn)=>{const o={};rows.forEach(r=>(o[r[k]]=o[r[k]]||[]).push(r));return Object.entries(o).map(([a,b])=>[a,fn(b)])};
+const sum=(a,k)=>a.reduce((s,r)=>s+r[k],0),dist=(a,k)=>new Set(a.map(r=>r[k])).size;
+function mk(id,cfg){charts[id]&&charts[id].destroy();charts[id]=new Chart($('#'+id),cfg)}
+
+function render(){
+  const P=TH[theme].p,cs=getComputedStyle(document.documentElement);
+  Chart.defaults.color=cs.getPropertyValue('--mu').trim();Chart.defaults.borderColor=cs.getPropertyValue('--bd').trim();
+  Chart.defaults.font.family='"Segoe UI",system-ui,sans-serif';
+  const rows=DATA.filter(r=>FK.every(k=>!F[k]||r[k]===F[k]));
+  $('#chips').innerHTML=FK.filter(k=>F[k]).map(k=>`<span class="chip" onclick="setF('${k}','${F[k].replace(/'/g,"\\'")}')">${k}: ${k==='month'?mlabel(F[k]):esc(F[k])} ✕</span>`).join('');
+  $('#kpis').innerHTML=[['👤','Total Customers',dist(rows,'customer')],['🛒','Total Orders',dist(rows,'order')],['📦','Total Quantity',kf(sum(rows,'qty'))],['💰','Total Sales',kf(sum(rows,'sales'))],['📈','Total Profit',kf(sum(rows,'profit'))]].map(k=>`<div class="card kpi"><i>${k[0]}</i><div><span>${k[1]}</span><b>${k[2]}</b></div></div>`).join('');
+  const base={maintainAspectRatio:false,plugins:{legend:{display:false}}},ck=(k)=>(e,el,ch)=>el.length&&setF(k,ch.data.keys?ch.data.keys[el[0].index]:ch.data.labels[el[0].index]);
+  const city=grp(rows,'city',a=>[sum(a,'sales'),sum(a,'profit')]).sort((a,b)=>b[1][0]-a[1][0]).slice(0,6);
+  mk('c1',{type:'bar',data:{labels:city.map(c=>c[0]),datasets:[{label:'Total Sales',data:city.map(c=>c[1][0]),backgroundColor:P[0]},{label:'Total Profit',data:city.map(c=>c[1][1]),backgroundColor:P[1]}]},options:{...base,indexAxis:'y',plugins:{legend:{display:true,position:'bottom'}},scales:{x:{ticks:{callback:kf}}},onClick:ck('city')}});
+  const mo=grp(rows,'date',a=>[sum(a,'sales'),sum(a,'profit')]).filter(m=>m[0]).sort((a,b)=>a[0]<b[0]?-1:1);
+  mk('c2',{type:'bar',data:{keys:mo.map(m=>m[0]),labels:mo.map(m=>mlabel(m[0])),datasets:[{type:'bar',label:'Total Sales',data:mo.map(m=>m[1][0]),backgroundColor:mo.map(m=>m[0]===F.month?P[1]:P[0])},{type:'line',label:'Total Profit',data:mo.map(m=>m[1][1]),borderColor:P[2],backgroundColor:P[2],tension:.3}]},options:{...base,plugins:{legend:{display:true,position:'bottom'}},scales:{y:{ticks:{callback:kf}}},onClick:ck('month')}});
+  const donut=(id,key)=>{const g=grp(rows,key,a=>sum(a,'sales')).sort((a,b)=>b[1]-a[1]);mk(id,{type:'doughnut',data:{labels:g.map(x=>x[0]),datasets:[{data:g.map(x=>x[1]),backgroundColor:P,borderWidth:0}]},options:{maintainAspectRatio:false,cutout:'58%',plugins:{legend:{position:'right'},tooltip:{callbacks:{label:c=>' '+c.label+': '+kf(c.parsed)}}},onClick:ck(key)}})};
+  donut('c3','segment');donut('c4','category');
+  const oc=grp(rows,'category',a=>dist(a,'order')).sort((a,b)=>b[1]-a[1]);
+  mk('c5',{type:'bar',data:{labels:oc.map(x=>x[0]),datasets:[{data:oc.map(x=>x[1]),backgroundColor:oc.map(x=>x[0]===F.category?P[1]:P[2])}]},options:{...base,onClick:ck('category')}});
+  const tc=grp(rows,'customer',a=>sum(a,'sales')).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  mk('c6',{type:'bar',data:{labels:tc.map(x=>x[0]),datasets:[{data:tc.map(x=>x[1]),backgroundColor:P.slice(0,5)}]},options:{...base,indexAxis:'y',scales:{x:{ticks:{callback:kf}}}}});
+}
+async function saveFile(name,data){try{if(typeof claude==='undefined')throw{message:'Open this dashboard in claude.ai to download files.'};const d=await claude.use('downloads');if(!d)throw{message:'Downloads are not available in this view.'};await d.save({filename:name,data})}catch(e){if(!e||e.code!=='declined')alert('Could not save: '+((e&&(e.message||e.code))||'unknown error'))}}
+function downloadPic(){const el=$('#app'),bg=getComputedStyle(document.body).backgroundColor;html2canvas(document.body,{backgroundColor:bg,scale:2}).then(c=>c.toBlob(b=>saveFile('sales-performance-report.png',b)))}
+function template(){saveFile('sales-template.csv','Order ID,Order Date,Customer,Segment,Category,City,Quantity,Sales,Profit\nORD-1,2026-01-15,Aaron Frost,Consumer,Technology,Odense,120,15000,6000\nORD-2,2026-02-03,Beth Hill,Corporate,Furniture,Aarhus,80,9000,3200\n')}
+$('#theme').innerHTML=Object.keys(TH).map(k=>`<option value="${k}">${TH[k].n}</option>`).join('');$('#theme').value=theme;
+document.documentElement.dataset.theme=theme;loadSample();
+</script></body></html>
